@@ -797,3 +797,22 @@ void test_status_worktree__interruptable_foreach(void)
 
 	cl_assert_equal_i(8, count);
 }
+
+void test_status_worktree__new_staged_file_must_handle_crlf(void)
+{
+	git_index *index;
+	git_config *config;
+	unsigned int status;
+	git_repository *repo = cl_git_sandbox_init("status");
+
+	// Ensure that repo has core.autocrlf=true
+	cl_git_pass(git_repository_config(&config, repo));
+	cl_git_pass(git_config_set_bool(config, "core.autocrlf", true));
+
+	cl_git_mkfile("status/current_file", "current_file\r\n");	// update content with CRLF
+
+	cl_git_pass(git_status_file(&status, repo, "current_file"));
+	cl_assert_equal_i(GIT_STATUS_CURRENT, status);
+
+	git_config_free(config);
+}
