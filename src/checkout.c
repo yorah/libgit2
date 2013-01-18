@@ -220,11 +220,12 @@ static int checkout_action_wd_only(
 {
 	bool remove = false;
 	git_checkout_notify_t notify = GIT_CHECKOUT_NOTIFY_NONE;
+	size_t index;
 
 	if (!git_pathspec_match_path(
 			pathspec, wd->path,
 			(data->strategy & GIT_CHECKOUT_DISABLE_PATHSPEC_MATCH) != 0,
-			workdir->ignore_case))
+			workdir->ignore_case, &index))
 		return 0;
 
 	/* check if item is tracked in the index but not in the checkout diff */

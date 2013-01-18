@@ -1666,6 +1666,7 @@ int git_index_read_tree_match(
 	char *pfx = NULL;
 	git_vector pathspec = GIT_VECTOR_INIT;
 	git_pool pathpool = GIT_POOL_INIT_STRINGPOOL;
+	size_t index;
 #endif
 
 	if (!git_pathspec_is_interesting(strspec))
@@ -1689,7 +1690,8 @@ int git_index_read_tree_match(
 		goto cleanup;
 
 	while (entry != NULL) {
-		if (git_pathspec_match_path(&pathspec, entry->path, false, false) &&
+		if (git_pathspec_match_path(
+				&pathspec, entry->path, false, false, &index) &&
 			(error = git_index_add(index, entry)) < 0)
 			goto cleanup;
 

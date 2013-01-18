@@ -25,8 +25,15 @@ extern int git_pathspec_init(
 /* free data from the pathspec vector */
 extern void git_pathspec_free(git_vector *vspec);
 
-/* match a path against the vectorized pathspec */
+/*
+ * Match a path against the vectorized pathspec.
+ * The index of the matched pathspec is passed back in the index parameter.
+ */
 extern bool git_pathspec_match_path(
-	git_vector *vspec, const char *path, bool disable_fnmatch, bool casefold);
+	git_vector *vspec,
+	const char *path,
+	bool disable_fnmatch,
+	bool casefold,
+	int *index);
 
 #endif
