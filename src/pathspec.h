@@ -34,6 +34,6 @@ extern bool git_pathspec_match_path(
 	const char *path,
 	bool disable_fnmatch,
 	bool casefold,
-	int *index);
+	size_t *index);
 
 #endif
