@@ -307,6 +307,77 @@ void test_diff_workdir__to_index_with_pathspec(void)
 	git_diff_list_free(diff);
 }
 
+static void matched_pathspec(
+	const char *path,
+	const char *matched_pathspec,
+	void *payload)
+{
+	int i = 0;
+	bool found = false;
+	const char ** exp = (const char **)payload;
+
+	GIT_UNUSED(path);
+
+	while (exp[i]) {
+		if (strcmp(exp[i++], matched_pathspec))
+			continue;
+
+		found = true;
+		break;
+	}
+
+	cl_assert(found);
+}
+
+void test_diff_workdir__to_index_notify_unmatched_pathspec(void)
+{
+	git_diff_options opts = GIT_DIFF_OPTIONS_INIT;
+	git_diff_list *diff = NULL;
+	diff_expects exp;
+	char *pathspec = NULL;
+	char *expected_matched_pathspecs[] = {
+		"subdir/*",
+		"staged*",
+		NULL
+	};
+	char *searched_pathspecs[] = {
+		"staged_changes_cant_find_me",
+		"subdir/modified_cant_find_me",
+		"subdir/*",
+		"staged*"
+	};
+
+	g_repo = cl_git_sandbox_init("status");
+
+	opts.flags |= GIT_DIFF_INCLUDE_IGNORED | GIT_DIFF_INCLUDE_UNTRACKED;
+	opts.notify_cb = matched_pathspec;
+	opts.pathspec.strings = &pathspec;
+	opts.pathspec.count   = 1;
+
+	pathspec = "*_deleted";
+	opts.notify_payload = &pathspec;
+	memset(&exp, 0, sizeof(exp));
+
+	cl_git_pass(git_diff_index_to_workdir(&diff, g_repo, NULL, &opts));
+	cl_git_pass(git_diff_foreach(diff, diff_file_cb, NULL, NULL, &exp));
+
+	cl_assert_equal_i(2, exp.files);
+
+	git_diff_list_free(diff);
+
+	opts.pathspec.strings = searched_pathspecs;
+	opts.pathspec.count   = 4;
+	opts.notify_payload = &expected_matched_pathspecs;
+	memset(&exp, 0, sizeof(exp));
+
+	cl_git_pass(git_diff_index_to_workdir(&diff, g_repo, NULL, &opts));
+	cl_git_pass(git_diff_foreach(diff, diff_file_cb, NULL, NULL, &exp));
+
+	cl_assert_equal_i(8, exp.files);
+
+	git_diff_list_free(diff);
+}
+
 void test_diff_workdir__filemode_changes(void)
 {
 	git_config *cfg;

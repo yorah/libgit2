@@ -41,13 +41,30 @@ static git_diff_delta *diff_delta__alloc(
 	return delta;
 }
 
+static void diff_notify(
+	const git_diff_options *opts,
+	const char *path,
+	git_vector *pathspecs,
+	size_t index)
+{		
+	if (!opts->notify_cb)
+		return;
+
+	opts->notify_cb(
+		path,
+		(index < 0) ? NULL : git_vector_get(pathspecs, index),
+		opts->notify_payload);	
+}
+
 static int diff_delta__from_one(
 	git_diff_list *diff,
 	git_delta_t   status,
-	const git_index_entry *entry)
+	const git_index_entry *entry,
+	const git_diff_options *opts)
 {
 	git_diff_delta *delta;
 	size_t index;
+	char *s;
 
 	if (status == GIT_DELTA_IGNORED &&
 		(diff->opts.flags & GIT_DIFF_INCLUDE_IGNORED) == 0)
@@ -62,6 +79,8 @@ static int diff_delta__from_one(
 			(diff->opts.flags & GIT_DIFF_DISABLE_PATHSPEC_MATCH) != 0,
 			(diff->opts.flags & GIT_DIFF_DELTAS_ARE_ICASE) != 0, &index))
 		return 0;
+
+	s = git_vector_get(&diff->pathspec, 0);
 
 	delta = diff_delta__alloc(diff, status, entry->path);
 	GITERR_CHECK_ALLOC(delta);
@@ -90,6 +109,8 @@ static int diff_delta__from_one(
 		return -1;
 	}
 
+	diff_notify(opts, entry->path, &diff->pathspec, index);
+
 	return 0;
 }
 
@@ -100,7 +121,9 @@ static int diff_delta__from_two(
 	uint32_t old_mode,
 	const git_index_entry *new_entry,
 	uint32_t new_mode,
-	git_oid *new_oid)
+	git_oid *new_oid,
+	const git_diff_options *opts,
+	size_t matched_pathspec_index)
 {
 	git_diff_delta *delta;
 
@@ -143,6 +166,8 @@ static int diff_delta__from_two(
 		git__free(delta);
 		return -1;
 	}
+
+	diff_notify(opts, old_entry->path, &diff->pathspec, matched_pathspec_index);
 
 	return 0;
 }
@@ -413,7 +438,8 @@ static int maybe_modified(
 	const git_index_entry *oitem,
 	git_iterator *new_iter,
 	const git_index_entry *nitem,
-	git_diff_list *diff)
+	git_diff_list *diff,
+	const git_diff_options *opts)
 {
 	git_oid noid, *use_noid = NULL;
 	git_delta_t status = GIT_DELTA_MODIFIED;
@@ -455,8 +481,8 @@ static int maybe_modified(
 		if ((diff->opts.flags & GIT_DIFF_INCLUDE_TYPECHANGE) != 0)
 			status = GIT_DELTA_TYPECHANGE;
 		else {
-			if (diff_delta__from_one(diff, GIT_DELTA_DELETED, oitem) < 0 ||
-				diff_delta__from_one(diff, GIT_DELTA_ADDED, nitem) < 0)
+			if (diff_delta__from_one(diff, GIT_DELTA_DELETED, oitem, opts) < 0 ||
+				diff_delta__from_one(diff, GIT_DELTA_ADDED, nitem, opts) < 0)
 				return -1;
 			return 0;
 		}
@@ -528,7 +554,7 @@ static int maybe_modified(
 	}
 
 	return diff_delta__from_two(
-		diff, status, oitem, omode, nitem, nmode, use_noid);
+		diff, status, oitem, omode, nitem, nmode, use_noid, opts, index);
 }
 
 static bool entry_is_prefixed(
@@ -615,7 +641,7 @@ int git_diff__from_iterators(
 
 		/* create DELETED records for old items not matched in new */
 		if (cmp < 0) {
-			if (diff_delta__from_one(diff, GIT_DELTA_DELETED, oitem) < 0)
+			if (diff_delta__from_one(diff, GIT_DELTA_DELETED, oitem, opts) < 0)
 				goto fail;
 
 			/* if we are generating TYPECHANGE records then check for that
@@ -719,7 +745,7 @@ int git_diff__from_iterators(
 			else if (new_iter->type != GIT_ITERATOR_WORKDIR)
 				delta_type = GIT_DELTA_ADDED;
 
-			if (diff_delta__from_one(diff, delta_type, nitem) < 0)
+			if (diff_delta__from_one(diff, delta_type, nitem, opts) < 0)
 				goto fail;
 
 			/* if we are generating TYPECHANGE records then check for that
@@ -747,10 +773,11 @@ int git_diff__from_iterators(
 		else {
 			assert(oitem && nitem && cmp == 0);
 
-			if (maybe_modified(old_iter, oitem, new_iter, nitem, diff) < 0 ||
-				git_iterator_advance(old_iter, &oitem) < 0 ||
-				git_iterator_advance(new_iter, &nitem) < 0)
-				goto fail;
+			if (maybe_modified(
+				old_iter, oitem, new_iter, nitem, diff, opts) < 0 ||
+					git_iterator_advance(old_iter, &oitem) < 0 ||
+					git_iterator_advance(new_iter, &nitem) < 0)
+					goto fail;
 		}
 	}
 

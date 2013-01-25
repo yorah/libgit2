@@ -61,6 +61,12 @@
  */
 GIT_BEGIN_DECL
 
+/** Diff notification callback function */
+typedef void (*git_diff_notify_cb)(
+	const char *path,
+	const char *matched_pathspec,
+	void *payload);
+
 /**
  * Flags for diff options.  A combination of these flags can be passed
  * in via the `flags` value in the `git_diff_options`.
@@ -151,6 +157,13 @@ typedef struct {
 	const char *new_prefix;    /**< defaults to "b" */
 	git_strarray pathspec;     /**< defaults to include all paths */
 	git_off_t max_size;        /**< defaults to 512MB */
+	/** Optional callback, notifying the consumer of which files/trees are
+	 *  are being examined.
+	 */
+	git_diff_notify_cb notify_cb;
+	/** Payload passed to the git_diff_notify_cb callback.
+	 */
+	void *notify_payload;
 } git_diff_options;
 
 #define GIT_DIFF_OPTIONS_VERSION 1
